@@ -106,12 +106,18 @@ Agentico (DoorDash's agentic-orchestrator) builds features: research, design, ro
 The captain chose two checks: agentico's final review, then this home's no-mistakes pipeline before any pull request.
 The captain approves agentico's gates (research, design, roadmap, questions) in agentico's desktop app, never through this session.
 
+### One copy of each project
+
+Agentico's workspace folder is this home's `projects/` directory, so agentico and firstmate share one clone per project.
+Agentico's worktrees branch from that same clone, so its finished commits are already inside the repository every crewmate worktree uses; nothing is copied between folders.
+Fleet sync keeps that clone's default branch current with GitHub, and it never prunes a branch that still has a worktree or never had an upstream, so agentico's in-progress branches are safe.
+
 ### When to use it
 
 Use it for an authorized **feature** spec, and for each feature from an approved app plan, when all of these hold:
 
 - `agentico api GET /api/v1/health` succeeds (the agentico app or `agentico server` is running);
-- `agentico api GET /api/v1/readiness` lists the project's repository under `workspace.repositories[].name`.
+- `agentico api GET /api/v1/readiness` lists the project's repository under `workspace.repositories[].name`; if it lists nothing from `projects/`, agentico's workspace folder is set elsewhere, so tell the captain to point it at this home's `projects/` directory.
 
 If either fails, tell the captain in one line what is missing and use section 2's "Otherwise" path instead; never start agentico's server yourself.
 
@@ -121,11 +127,13 @@ Agentico's own supervisor skill (`api-reference.md` and `recipes.md` in its inst
 
 ### Hand off a feature
 
-1. Choose the pipeline: `medium` when the spec is detailed and the approach is obvious from the existing code, otherwise `large`; `moonshot` only when the captain asks.
-2. Create the feature, with the spec as `description` (shorten to the decisions and acceptance criteria if it exceeds 10000 characters), the backlog item id as `idempotency_key`, and `manual_publish` on so agentico never opens a pull request itself:
+1. Refresh the project's clone first through the guarded fleet-sync path (`bin/fm-fleet-sync.sh <project>`), so agentico starts from current code.
+   If it reports the clone `STUCK`, stop and tell the captain rather than handing off stale code.
+2. Choose the pipeline: `medium` when the spec is detailed and the approach is obvious from the existing code, otherwise `large`; `moonshot` only when the captain asks.
+3. Create the feature, with the spec as `description` (shorten to the decisions and acceptance criteria if it exceeds 10000 characters), the backlog item id as `idempotency_key`, and `manual_publish` on so agentico never opens a pull request itself:
    `agentico api POST /api/v1/features '{"name":"<title>","description":"<spec>","repos":["<repo>"],"pipeline":"<medium|large>","checkpoints":{"manual_publish":true},"idempotency_key":"<item-id>"}'`
-3. Dispatch its setup with `POST /api/v1/features/<feature_id>/actions/setup '{}'`, read the feature until setup is done, then start it with `POST /api/v1/features/<feature_id>/actions/start '{}'`.
-4. Record the agentico feature id in the backlog item note, and tell the captain in one line that the feature is running in agentico and its gates will appear in the agentico app.
+4. Dispatch its setup with `POST /api/v1/features/<feature_id>/actions/setup '{}'`, read the feature until setup is done, then start it with `POST /api/v1/features/<feature_id>/actions/start '{}'`.
+5. Record the agentico feature id in the backlog item note, and tell the captain in one line that the feature is running in agentico and its gates will appear in the agentico app.
 
 ### While it runs
 
@@ -141,11 +149,12 @@ Never answer agentico's gates, questions, or permission requests yourself.
 
 When the feature reaches `CodeReady`:
 
-1. Read the repository's worktree path with `GET /api/v1/features/<feature_id>/repositories/<repo>/path`.
+1. Read the repository's worktree path with `GET /api/v1/features/<feature_id>/repositories/<repo>/path`, then read its finished commit with `git -C <worktree path> rev-parse HEAD` and its state with `git -C <worktree path> status --porcelain`.
+   If the status shows uncommitted changes, stop and tell the captain: agentico's work is not fully committed.
 2. Dispatch a ship task in `no-mistakes` mode through section 7, with the spec in `## Captain's intent` and this in `## Firstmate spec`:
-   > The implementation already exists, built and reviewed by agentico in `<worktree path>`.
-   > Do not reimplement it. Bring it into your ship branch with `git fetch <worktree path> HEAD` and the fetched commits, rebased onto the base branch if needed.
-   > Then follow your delivery path; fix only what the pipeline finds.
+   > The implementation already exists: agentico built and reviewed it as commit `<sha>`, which is already in this repository.
+   > Do not reimplement it. Create the ship branch your brief names from that commit (`git switch -c <ship branch> <sha>`), rebase it onto the base branch if the base has moved, and then follow your delivery path.
+   > Fix only what the pipeline finds.
 3. Never use agentico's own `publish` or `merge` actions; the pull request comes from no-mistakes, and merge authority stays with the captain as usual.
 4. After the pull request lands, ask the captain before removing agentico's worktrees with `POST /api/v1/features/<feature_id>/actions/cleanup '{}'`.
 
