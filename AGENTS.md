@@ -167,6 +167,8 @@ The delivery lifecycle is an always-loaded operational contract; referenced scri
 
 ### Intake and authority
 
+Load `lifecycle` at intake for every new captain request to build, change, plan, or design something, before classifying the deliverable; it sizes the request and sets the clarification step and route, and every rule below still applies.
+
 Resolve the project independently for every request.
 An explicit project wins, a clear follow-up inherits its referent, and otherwise match the request against the registry, work under way, and project code or README.
 Proceed on one confident match while naming the project in plain language; ask one concise question when multiple or no projects plausibly match.

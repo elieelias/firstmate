@@ -633,6 +633,14 @@
       "audience": "agent-runtime"
     },
     {
+      "path": ".agents/skills/lifecycle/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/phases/clarify/grilling/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
       "path": ".agents/skills/operational-home-layout/SKILL.md",
       "audience": "agent-runtime"
     },
