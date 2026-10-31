@@ -67,7 +67,7 @@ The grilling skill is Matt Pocock's original, unchanged; a small request natural
 3. When the scout reports done, load `scout-completion` and relay the spec's summary and open questions.
    A finished spec recommends building; it does not authorize it.
 4. When the captain authorizes the build:
-   - **Agentico route** (only when section 4 says it is enabled): hand the spec to agentico as the feature description.
+   - **Agentico route** (section 4) when its conditions hold.
    - **Otherwise:** if the spec describes one shippable change, promote the scout in place through `bin/fm-promote.sh`.
      If it describes several independently shippable slices, propose a split into backlog items with dependencies, one ship task per slice, each brief carrying the spec's relevant decisions in `## Captain's intent`, and dispatch after the captain agrees.
 
@@ -102,9 +102,52 @@ A long-idle captain-attended pane is healthy while its `paused [key=interview]` 
 
 ## 4. Agentico route
 
-Status: **not enabled.**
-This section is enabled only after the captain has run agentico on its own and asked for it to be connected.
-Until then, route every feature through section 2's "Otherwise" path.
+Agentico (DoorDash's agentic-orchestrator) builds features: research, design, roadmap, phase plans, implementation, and its own final review.
+The captain chose two checks: agentico's final review, then this home's no-mistakes pipeline before any pull request.
+The captain approves agentico's gates (research, design, roadmap, questions) in agentico's desktop app, never through this session.
+
+### When to use it
+
+Use it for an authorized **feature** spec, and for each feature from an approved app plan, when all of these hold:
+
+- `agentico api GET /api/v1/health` succeeds (the agentico app or `agentico server` is running);
+- `agentico api GET /api/v1/readiness` lists the project's repository under `workspace.repositories[].name`.
+
+If either fails, tell the captain in one line what is missing and use section 2's "Otherwise" path instead; never start agentico's server yourself.
+
+Talk to agentico only through its helper, one bare call per command: `agentico api <METHOD> <path> ['<json body>']`.
+Never read its discovery file or token, and never edit its worktrees or state files.
+Agentico's own supervisor skill (`api-reference.md` and `recipes.md` in its installed skills) owns the exact fields; read it when a call is refused.
+
+### Hand off a feature
+
+1. Choose the pipeline: `medium` when the spec is detailed and the approach is obvious from the existing code, otherwise `large`; `moonshot` only when the captain asks.
+2. Create the feature, with the spec as `description` (shorten to the decisions and acceptance criteria if it exceeds 10000 characters), the backlog item id as `idempotency_key`, and `manual_publish` on so agentico never opens a pull request itself:
+   `agentico api POST /api/v1/features '{"name":"<title>","description":"<spec>","repos":["<repo>"],"pipeline":"<medium|large>","checkpoints":{"manual_publish":true},"idempotency_key":"<item-id>"}'`
+3. Dispatch its setup with `POST /api/v1/features/<feature_id>/actions/setup '{}'`, read the feature until setup is done, then start it with `POST /api/v1/features/<feature_id>/actions/start '{}'`.
+4. Record the agentico feature id in the backlog item note, and tell the captain in one line that the feature is running in agentico and its gates will appear in the agentico app.
+
+### While it runs
+
+On every heartbeat while an agentico feature is open, and whenever the captain asks, read `GET /api/v1/features/<feature_id>`:
+
+- an open `review_gate` or `need_user_input`: tell the captain once that agentico is waiting in its app;
+- a `failure`: relay it and ask whether to retry, rewind, or stop;
+- `CodeReady`: hand the result to no-mistakes, below.
+
+Never answer agentico's gates, questions, or permission requests yourself.
+
+### Second check: no-mistakes
+
+When the feature reaches `CodeReady`:
+
+1. Read the repository's worktree path with `GET /api/v1/features/<feature_id>/repositories/<repo>/path`.
+2. Dispatch a ship task in `no-mistakes` mode through section 7, with the spec in `## Captain's intent` and this in `## Firstmate spec`:
+   > The implementation already exists, built and reviewed by agentico in `<worktree path>`.
+   > Do not reimplement it. Bring it into your ship branch with `git fetch <worktree path> HEAD` and the fetched commits, rebased onto the base branch if needed.
+   > Then follow your delivery path; fix only what the pipeline finds.
+3. Never use agentico's own `publish` or `merge` actions; the pull request comes from no-mistakes, and merge authority stays with the captain as usual.
+4. After the pull request lands, ask the captain before removing agentico's worktrees with `POST /api/v1/features/<feature_id>/actions/cleanup '{}'`.
 
 ## 5. Spec format
 
